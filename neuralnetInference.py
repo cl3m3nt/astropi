@@ -20,36 +20,6 @@ logger = logging.getLogger()
 base_path = os.getcwd() + '/Dataset'
 image_list = os.listdir('./Dataset')
 
-def contrast_stretch(im):
-    """
-    Performs a simple contrast stretch of the given image, from 5-100%.
-    """
-    in_min = np.percentile(im, 5)
-    in_max = np.percentile(im, 100)
-
-    out_min = 0.0
-    out_max = 255.0
-
-    out = im - in_min
-    out *= ((out_min - out_max) / (in_min - in_max))
-    out += in_min
-
-    return out
-
-
-def get_ndvi(image_path):
-    """
-    Transform a raw image to ndvi image
-    """
-    image = cv2.imread(image_path) 
-    b, g, r = cv2.split(image)
-
-    bottom = (r.astype(float) + b.astype(float))
-    bottom[bottom == 0] = 0.00001  # Make sure we don't divide by zero!
-    ndvi_image = (r.astype(float) - b) / bottom
-    ndvi_image = contrast_stretch(ndvi_image)
-    ndvi_image = ndvi_image.astype(np.uint8)
-    return ndvi_image
 
 def contrast_stretch(im):
     """
@@ -66,21 +36,6 @@ def contrast_stretch(im):
     out += in_min
 
     return out
-
-
-def get_ndvi(image_path):
-    """
-    Transform a raw image to ndvi image
-    """
-    image = cv2.imread(image_path) 
-    b, g, r = cv2.split(image)
-
-    bottom = (r.astype(float) + b.astype(float))
-    bottom[bottom == 0] = 0.00001  # Make sure we don't divide by zero!
-    ndvi_image = (r.astype(float) - b) / bottom
-    ndvi_image = contrast_stretch(ndvi_image)
-    ndvi_image = ndvi_image.astype(np.uint8)
-    return ndvi_image
 
 
 def get_ndvi(image_path):
@@ -106,6 +61,7 @@ def ndvi_images():
         ndvi_img_list.append(ndvi_img)
     ndvi_img_numpy = np.array(ndvi_img_list)
     return ndvi_img_numpy
+
 
 def ndvi_small_image():
     ndvi_img_list = []
@@ -168,7 +124,6 @@ def no2_labels():
         label_list.append(random_label)
     label_numpy = np.array(label_list)
     return label_numpy
-
 
 
 # Model Helper functions
@@ -246,7 +201,15 @@ for i in range(0,82):
 for i in tqdm(range(0,82)):
     efficientnetb0_model.predict(x_train[i])
 
-
+'''
+metrics = PrettyTable()
+metrics.field_names = ["Model","Total Params","Trainable Params","Non-Trainable Params","Total Time", "it/s"]
+metrics.add_row(["Conv1D",get_model_params(conv1D_model)[0],get_model_params(conv1D_model)[1],get_model_params(conv1D_model)[2], history_conv1D.history['loss'], history_conv1D.history['accuracy']])
+metrics.add_row(["Conv2D",get_model_params(conv2D_model)[0],get_model_params(conv2D_model)[1],get_model_params(conv2D_model)[2], history_conv2D.history['loss'], history_conv2D.history['accuracy']])
+metrics.add_row(["MobileNetv2",get_model_params(mobilenetv2_model)[0],get_model_params(mobilenetv2_model)[1],get_model_params(mobilenetv2_model)[2],history_mobilenetv2.history['loss'], history_mobilenetv2.history['accuracy']])
+metrics.add_row(["EfficientNetB0",get_model_params(efficientnetb0_model)[0],get_model_params(efficientnetb0_model)[1],get_model_params(efficientnetb0_model)[2], history_efficientnetb0.history['loss'], history_efficientnetb0.history['accuracy']])
+print(metrics)
+'''
 
 
 

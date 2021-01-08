@@ -214,7 +214,7 @@ logger.info("Conv1D Training Start")
 x_train = ndvi_images()
 y_train = no2_labels()
 conv1D_model = get_conv1D_model()
-history_conv1D = conv1D_model.fit(x_train,y_train,epochs=1)
+history_conv1D = conv1D_model.fit(x_train,y_train,epochs=20)
 save_model("conv1D",conv1D_model)
 
 # Conv2D Training
@@ -223,7 +223,7 @@ x_train = np.array(ndvi_small_image())
 x_train = np.expand_dims(x_train,axis=3)
 y_train = no2_labels()
 conv2D_model = get_conv2D_model()
-history_conv2D = conv2D_model.fit(x_train,y_train,epochs=1)
+history_conv2D = conv2D_model.fit(x_train,y_train,epochs=20)
 save_model("conv2D",conv2D_model)
 
 # Mobilenetv2 Training
@@ -233,7 +233,7 @@ x_train = ndvi_rgb_image()
 y_train = no2_labels()
 print(' transfer mobilenet')
 mobilenetv2_model = get_mobilenetv2_model()
-history_mobilenetv2 = mobilenetv2_model.fit(x_train,y_train,epochs=1)
+history_mobilenetv2 = mobilenetv2_model.fit(x_train,y_train,epochs=20)
 save_model("mobilenetv2",mobilenetv2_model)
 
 # EfficientB0 Training
@@ -241,7 +241,7 @@ logger.info("EfficientNetB0 Training Start")
 x_train = ndvi_rgb_image()
 y_train = no2_labels()
 efficientnetb0_model = get_efficientnetb0_model()
-history_efficientnetb0 = efficientnetb0_model.fit(x_train,y_train,epochs=1)
+history_efficientnetb0 = efficientnetb0_model.fit(x_train,y_train,epochs=20)
 save_model("efficientnetb0",efficientnetb0_model)
 
 # Training Models Metrics
