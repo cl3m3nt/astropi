@@ -10,18 +10,15 @@ from prettytable import PrettyTable
 import random
 from tqdm import tqdm
 import tensorflow as tf
-import logging
+from logzero import logger
 from ephem import readtle, degree
-from exif import Image
+#from exif import Image
 import reverse_geocoder as rg
 from pathlib import Path
 from time import sleep
 from datetime import datetime
 
 # Pre-requesite #
-# Logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger()
 # Data basepath
 base_path = os.getcwd() + '/Dataset'
 dir_path = Path(__file__).parent.resolve()
@@ -39,6 +36,8 @@ print(iss.sublat, iss.sublong)
 '''
 cam = PiCamera()
 cam.resolution = (1296,972) # Valid resolution for V1 camera
+This parameter play a major role in overall processing time
+Capturing smaller images would allow not to scale them down during pre-processing
 '''
 
 # Pre-Processing Helper functions
@@ -65,6 +64,26 @@ def capture(camera, image):
 
     # capture the image
     camera.capture(image)
+
+# ISS Location Helper functions
+# https://support.google.com/maps/answer/18539?co=GENIE.Platform%3DDesktop&hl=fr
+def convert(angle):
+    """
+    Convert an ephem angle (degrees:minutes:seconds) to
+    an EXIF-appropriate representation (rationals)
+    e.g. '51:35:19.7' to '51/1,35/1,197/10'
+    Return a tuple containing a boolean and the converted angle,
+    with the boolean indicating if the angle is negative.
+    """
+    degrees, minutes, seconds = (float(field) for field in str(angle).split(":"))
+    exif_angle = f'{abs(degrees):.0f}/1,{minutes:.0f}/1,{seconds*10:.0f}/10'
+    return degrees < 0, exif_angle
+
+south, exif_latitude = convert(iss.sublat)
+west, exif_longitude = convert(iss.sublong)
+print(south,exif_latitude)
+print(west,exif_longitude)
+
 
 def get_data(images_path):
     """
@@ -121,7 +140,7 @@ def scale_down(image):
 
 def ndvi_small_image(base_path,image_list):
     """
-    Downsize NDVI images to decrease Training/Inference time
+    Create and downsize NDVI images to decrease Training/Inference time
     """
     ndvi_img_list = []
     for i in tqdm(range(0,len(image_list))):
@@ -141,25 +160,6 @@ def ndvi_rgb_image(base_path,image_list):
     return ndvi_rgb_numpy
 
 
-# ISS Location Helper functions
-# https://support.google.com/maps/answer/18539?co=GENIE.Platform%3DDesktop&hl=fr
-def convert(angle):
-    """
-    Convert an ephem angle (degrees:minutes:seconds) to
-    an EXIF-appropriate representation (rationals)
-    e.g. '51:35:19.7' to '51/1,35/1,197/10'
-    Return a tuple containing a boolean and the converted angle,
-    with the boolean indicating if the angle is negative.
-    """
-    degrees, minutes, seconds = (float(field) for field in str(angle).split(":"))
-    exif_angle = f'{abs(degrees):.0f}/1,{minutes:.0f}/1,{seconds*10:.0f}/10'
-    return degrees < 0, exif_angle
-
-south, exif_latitude = convert(iss.sublat)
-west, exif_longitude = convert(iss.sublong)
-print(south,exif_latitude)
-print(west,exif_longitude)
-
 # Model Helper functions
 def load_model(model_name):
     """
@@ -168,19 +168,13 @@ def load_model(model_name):
     model = tf.keras.models.load_model(model_name)
     return model
 
-def make_inference(x_train_2D,conv2D_model):
+def make_inference(ndvi_image,model):
     """
-    Make inference using model to get N02 predictions from NDVI images
+    Make inference using model to get N02 predictions from 1 x NDVI image
     """
-    x_train = []
-    predictions = []
-    for i in range(0,82):
-        x_train_i = np.expand_dims(x_train_2D[i],axis=0)
-        x_train.append(x_train_i)
-    for i in tqdm(range(0,82)):
-        prediction = conv2D_model.predict(x_train[i])
-        predictions.append(prediction)
-    return predictions
+    ndvi_image_exp = np.expand_dims(ndvi_image,axis=0)
+    prediction = model.predict(ndvi_image_exp)
+    return prediction
 
 def decode_prediction(prediction):
     """
@@ -214,18 +208,39 @@ def main():
 
 
     # Exif Metadata
+    '''
     img0 = base_path+"/"+image_list[0]
     with open(img0, 'rb') as image_file:
         my_image = Image(image_file)    
         print(my_image.has_exif)
-    '''
+    
     exif_data = "test"
     im.save('imageExif.jpg',  exif=exif_data)
     '''
-
+   
     # NDVI Preprocessing
-    x_train_2D = np.array(ndvi_small_image(base_path,image_list))
+    x_train_2D = np.array(ndvi_small_image(base_path,image_list),dtype=np.uint8)
     x_train_2D = np.expand_dims(x_train_2D,axis=3)
+    img0_1c = x_train_2D[0]
+    img0_3c = cv2.cvtColor(img0_1c,cv2.COLOR_GRAY2RGB)
+    cv2.imwrite('test_ndvi_saving.jpeg',img0_3c)
+    #img = Image.fromarray(x_train_2D[0])
+    #img.save('test_ndvi_pil.jpeg')
+    '''
+    plt.axis('off')
+    plt.imshow(x_train_2D[0])
+    plt.savefig("test_ndvi_saving.jpeg")
+    plt.show()
+    '''
+
+    # NDVI Images Analysis
+    img0 = x_train_2D[0]
+    print(type(img0))
+    print(img0.shape)
+    print(x_train_2D.dtype)
+    img0
+
+    # https://stackoverflow.com/questions/47438654/single-channel-png-displayed-with-colors
 
     # Loading Model
     logger.info("Loading Models")
@@ -233,16 +248,18 @@ def main():
     print(conv2D_model.summary())
 
     # Doing Inference - 8s on MAC for 82 images
-    logger.info("Doing Inference")
-    predictions = make_inference(x_train_2D,conv2D_model)
-    print(predictions)
+    logger.info("Doing Inference with AI Model")
+    predictions = []
+    for i in tqdm(range(0,len(image_list))):
+        prediction = make_inference(x_train_2D[i],conv2D_model)
+        predictions.append(prediction)
 
     # Get Decoded Inference results
     decoded_inference = decode_inference(predictions)
     print(decoded_inference)
 
     # Write Prediction as CSV to disk
-    logger.info("Saving NO2 prediction")
+    logger.info("Saving NO2 prediction from AI")
     with open(data_file, 'w') as f:
         writer = csv.writer(f)
         header = ("Date/time", "Location", "Picture Name","Predicted NO2")
@@ -254,6 +271,7 @@ def main():
     rgb_ndvi_list = ndvi_rgb_image(base_path,image_list)
 
     # Write NDVI Image as JPG to disk with matplotlib
+    logger.info("Saving Images from ISS")
     for i in tqdm(range(0,len(rgb_ndvi_list))):
         matplotlib.image.imsave(image_list[i]+"_ndvi"+".jpeg", rgb_ndvi_list[i])
 
