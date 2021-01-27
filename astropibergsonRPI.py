@@ -15,6 +15,8 @@ from time import sleep
 from datetime import datetime,timedelta
 from picamera import PiCamera
 from keras.models import model_from_json
+import tensorflow as tf
+tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
 # Data basepath
 dir_path = Path(__file__).parent.resolve()
@@ -112,20 +114,12 @@ def load_model(model_name):
     print("Loaded model from disk")
     return loaded_model
 
-'''
-def load_model(model_name):
-    """
-    Load a pre-trained model
-    """
-    model = tf.keras.models.load_model(model_name)
-    return model
-'''
-
 def make_inference(ndvi_image,model):
     """
     Make inference using model to get N02 predictions from 1 x NDVI image
     """
     ndvi_image_exp = np.expand_dims(ndvi_image,axis=0)
+    ndvi_image_exp = ndvi_image_exp / 255.0
     prediction = model.predict(ndvi_image_exp)
     return prediction
 
@@ -144,20 +138,19 @@ def main():
     """
     Main program process of Bergson Astro Pi team
     """
-    #import os
-    #os.chdir('./Clement')
 
     # Experiment Start
     start_time = datetime.now()
-    logger.info(f'Starting Bergson Astro Pi team experiment at {start_time}')
+    logger.info('################ Bergson Team Experiment Start #################')
+    logger.info(f'Starting Bergson Astro Pi team experiment at {start_time.strftime("%Y-%m-%d %H:%M:%S")}')
 
     # Load AI Model
     logger.info("Loading AI Convolutional Model")
-    conv2D_model = load_model("model114")
+    conv2D_model = load_model("Conv2D_TF114")
     print(conv2D_model.summary())
 
     # Create Log File
-    logger.info("Creating Log file")
+    logger.info(f'Creating Log file at {str(data_file)}')
     with open(data_file, 'w') as f:
         writer = csv.writer(f)
         header = ("Date/time", "Location", "Picture Name","Predicted NO2")
@@ -167,11 +160,12 @@ def main():
     # Start Loop over 3 hours
 
     now_time = datetime.now()
+    i = 0
     # run a loop for 2 minutes
     while (now_time < start_time + timedelta(seconds=10)):
 
         # Take Earth Picture
-        logger.info("Taking Picture from ISS")
+        logger.info(f'Taking Picture {i} from ISS')
         timestamp = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
         pic_name = f'bergson_img_{timestamp}.jpg'
         capture(rpi_cam,str(dir_path/pic_name))
@@ -198,23 +192,20 @@ def main():
             writer = csv.writer(f)
             writer.writerow(row)
 
-        # Write NDVI Image as JPG to disk with matplotlib
-        '''
-        logger.info("Saving NDVI Images from Experiment")
-        matplotlib.image.imsave(f'bergson_img_{timestamp}_ndvi.jpeg', ndvi_image)
-        '''
-
         # update the current time
         now_time = datetime.now()
+        i = i+1
 
     # End Loop over 3 hours
 
 
     # Experiment End
     end_time = datetime.now()
-    logger.info(f'Finishing Bergson Astro Pi team experiment at {end_time}')
+    logger.info(f'Finishing Bergson Astro Pi team experiment at {end_time.strftime("%Y-%m-%d %H:%M:%S")}')
     experiment_time = end_time - start_time
     logger.info(f'Bergson Astro Pi team experiment run time {experiment_time}')
+    logger.info('################ Bergson Team Experiment End #################')
+
 
 # Executing main
 main()

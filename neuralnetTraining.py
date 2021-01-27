@@ -9,7 +9,7 @@ import tensorflow as tf
 import tensorflow.keras.backend as K
 from tensorflow.keras.models import Sequential, Model
 from tensorflow.keras.layers import Input,Conv2D, MaxPool2D, GlobalAveragePooling2D, Dense
-from tensorflow.keras.applications import MobileNetV2, EfficientNetB0
+import keras
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -36,7 +36,6 @@ def contrast_stretch(im):
     out += in_min
 
     return out
-
 
 def get_ndvi(image_path):
     """
@@ -105,6 +104,7 @@ def scale_down(image):
     output = cv2.resize(src, dsize)
     return output
 
+# Artificial Intelligence Definition
 
 def get_conv1D_model():
     model = Sequential([
@@ -143,6 +143,24 @@ def get_conv2D_model():
     model.summary()
     return model
 
+def get_conv2D2_model():
+    model = Sequential([
+    tf.keras.layers.Conv2D(8,(3,3),input_shape=(486,648,1)),
+    tf.keras.layers.MaxPool2D(2,2),
+    tf.keras.layers.Conv2D(8,(3,3)),
+    tf.keras.layers.MaxPool2D(2,2),
+    tf.keras.layers.Flatten(),
+    tf.keras.layers.Dense(3,activation='softmax')
+])
+    model.compile(
+        optimizer='adam',
+        loss='sparse_categorical_crossentropy',
+        metrics=['accuracy']
+    )
+
+    model.summary()
+    return model
+
 def get_mobilenetv2_model():
     mobilenetv2 = MobileNetV2(include_top=False, weights='imagenet',input_shape=(486,648,3))
     for layer in mobilenetv2.layers:
@@ -151,7 +169,7 @@ def get_mobilenetv2_model():
     input_shape = (486,648,3)
     img_in = Input(shape=input_shape, name='img_in')
     x = mobilenetv2_preprocess(img_in)
-    x = mobilenetv2(img_in, training=True)
+    x = mobilenetv2(x, training=True)
     x = GlobalAveragePooling2D()(x)
     # Classification layer
     output = Dense(3, activation='softmax', name='dense')(x)
@@ -209,27 +227,43 @@ def save_model(model_name,model):
     model.save(model_name + ".h5")
     print(f"Model saved as {model_name}.h5")
 
+'''
 # Conv1D Training
 logger.info("Conv1D Training Start")
 x_train = ndvi_images()
+# x_train = x_train/255.0
 y_train = no2_labels()
 conv1D_model = get_conv1D_model()
 history_conv1D = conv1D_model.fit(x_train,y_train,epochs=1)
 save_model("conv1D",conv1D_model)
+'''
 
 # Conv2D Training
 logger.info("Conv2D Training Start")
 x_train = np.array(ndvi_small_image())
 x_train = np.expand_dims(x_train,axis=3)
+# x_train = x_train/255.0
 y_train = no2_labels()
 conv2D_model = get_conv2D_model()
-history_conv2D = conv2D_model.fit(x_train,y_train,epochs=1)
+history_conv2D = conv2D_model.fit(x_train,y_train,epochs=10)
 save_model("conv2D",conv2D_model)
 
+# Conv2D Training
+logger.info("Conv2D2 Training Start")
+x_train = np.array(ndvi_small_image())
+x_train = np.expand_dims(x_train,axis=3)
+# x_train = x_train/255.0
+y_train = no2_labels()
+conv2D2_model = get_conv2D2_model()
+history_conv2D2 = conv2D2_model.fit(x_train,y_train,epochs=10)
+save_model("conv2D2",conv2D2_model)
+
+'''
 # Mobilenetv2 Training
 logger.info("Mobilenetv2 Training Start")
 print('x_train for mobilenet')
 x_train = ndvi_rgb_image()
+# x_train = x_train/255.0
 y_train = no2_labels()
 print(' transfer mobilenet')
 mobilenetv2_model = get_mobilenetv2_model()
@@ -239,6 +273,7 @@ save_model("mobilenetv2",mobilenetv2_model)
 # EfficientB0 Training
 logger.info("EfficientNetB0 Training Start")
 x_train = ndvi_rgb_image()
+# x_train = x_train/255.0
 y_train = no2_labels()
 efficientnetb0_model = get_efficientnetb0_model()
 history_efficientnetb0 = efficientnetb0_model.fit(x_train,y_train,epochs=1)
@@ -252,3 +287,4 @@ metrics.add_row(["Conv2D",get_model_params(conv2D_model)[0],get_model_params(con
 metrics.add_row(["MobileNetv2",get_model_params(mobilenetv2_model)[0],get_model_params(mobilenetv2_model)[1],get_model_params(mobilenetv2_model)[2],history_mobilenetv2.history['loss'], history_mobilenetv2.history['accuracy']])
 metrics.add_row(["EfficientNetB0",get_model_params(efficientnetb0_model)[0],get_model_params(efficientnetb0_model)[1],get_model_params(efficientnetb0_model)[2], history_efficientnetb0.history['loss'], history_efficientnetb0.history['accuracy']])
 print(metrics)
+'''

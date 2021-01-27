@@ -12,7 +12,7 @@ from tqdm import tqdm
 import tensorflow as tf
 from logzero import logger
 from ephem import readtle, degree
-#from exif import Image
+from exif import Image as exifImage
 import reverse_geocoder as rg
 from pathlib import Path
 from time import sleep
@@ -79,10 +79,17 @@ def convert(angle):
     exif_angle = f'{abs(degrees):.0f}/1,{minutes:.0f}/1,{seconds*10:.0f}/10'
     return degrees < 0, exif_angle
 
-south, exif_latitude = convert(iss.sublat)
-west, exif_longitude = convert(iss.sublong)
-print(south,exif_latitude)
-print(west,exif_longitude)
+    '''
+    south, exif_latitude = convert(iss.sublat)
+    west, exif_longitude = convert(iss.sublong)
+    print(south,exif_latitude)
+    print(west,exif_longitude)
+    '''
+
+def get_img_exif(img_name,pred,iss_var):
+    iss_var.compute()
+    exif_dico = {"Date/Time":datetime.now(), "Location":(iss_var.sublat,iss_var.sublong), "ImgName":img_name,"NO2":pred}
+    return exif_dico
 
 
 def get_data(images_path):
@@ -209,8 +216,8 @@ def main():
 
     # Exif Metadata
     '''
-    img0 = base_path+"/"+image_list[0]
-    with open(img0, 'rb') as image_file:
+    img0_path = base_path+"/"+image_list[0]
+    with open(img0_path, 'rb') as image_file:
         my_image = Image(image_file)    
         print(my_image.has_exif)
     
@@ -241,9 +248,10 @@ def main():
     img0
 
     # https://stackoverflow.com/questions/47438654/single-channel-png-displayed-with-colors
+    # http://www.greensightag.com/logbook/dynamic-colorization-a-deeper-look-into-what-it-means/
 
     # Loading Model
-    logger.info("Loading Models")
+    logger.info("Loading AI Convolutional Model")
     conv2D_model = load_model("conv2D.h5")
     print(conv2D_model.summary())
 
@@ -265,8 +273,10 @@ def main():
         header = ("Date/time", "Location", "Picture Name","Predicted NO2")
         writer.writerow(header)
         for i in range(0,len(decoded_inference)):
-            row = (datetime.now(), "(48.856614,2.3522219)", image_list[i],decoded_inference[i])
+            exif_data = get_img_exif(image_list[i],decoded_inference[i],iss)
+            row = (exif_data['Date/Time'], exif_data['Location'], exif_data['ImgName'],exif_data['NO2'])
             writer.writerow(row)
+            sleep(0.5)
 
     rgb_ndvi_list = ndvi_rgb_image(base_path,image_list)
 
@@ -280,6 +290,8 @@ def main():
     logger.info(f'Finishing Bergson Astro Pi team experiment at {end_time}')
     experiment_time = end_time - start_time
     logger.info(f'Bergson Astro Pi team experiment run time {experiment_time} for {len(image_list)} images')
+
+    return decoded_inference
     
 # Executing main
-main()
+predictions = main()

@@ -5,15 +5,15 @@ import os
 from PIL import Image
 from prettytable import PrettyTable
 import random
-import tensorflow as tf
-import tensorflow.keras.backend as K
-from tensorflow.keras.models import Sequential, Model
-from tensorflow.keras.layers import Input,Conv2D, MaxPool2D, GlobalAveragePooling2D, Dense
 import keras
 from keras.models import Sequential, Model
 from keras.layers import Input,Conv2D, MaxPool2D, GlobalAveragePooling2D, Dense
+from keras.applications import MobileNetV2
+from keras.applications.mobilenet import preprocess_input
 from keras.models import model_from_json
 import logging
+import tensorflow as tf
+tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
@@ -90,7 +90,6 @@ def no2_labels():
     label_numpy = np.array(label_list)
     return label_numpy
 
-
 def scale_down(image):
     src = image
     #percent by which the image is resized
@@ -108,25 +107,6 @@ def scale_down(image):
     return output
 
 # Artificial Intelligence Definition
-
-def get_conv1D_model():
-    model = Sequential([
-    tf.keras.layers.Conv1D(8,(3),input_shape=(1944,2592)),
-    tf.keras.layers.MaxPool1D(2,2),
-    tf.keras.layers.Conv1D(16,(3)),
-    tf.keras.layers.MaxPool1D(2,2),
-    tf.keras.layers.Flatten(),
-    tf.keras.layers.Dense(3,activation='softmax')
-])
-    model.compile(
-    optimizer='adam',
-    loss='sparse_categorical_crossentropy',
-    metrics=['accuracy']
-)
-
-    model.summary()
-    return model
-
 
 def get_conv2D_model():
     model = keras.Sequential([
@@ -146,38 +126,21 @@ def get_conv2D_model():
     model.summary()
     return model
 
-def get_conv2D2_model():
-    model = Sequential([
-    keras.layers.Conv2D(8,(3,3),input_shape=(486,648,1)),
-    keras.layers.MaxPool2D(2,2),
-    keras.layers.Conv2D(8,(3,3)),
-    keras.layers.MaxPool2D(2,2),
-    keras.layers.Flatten(),
-    keras.layers.Dense(3,activation='softmax')
-])
-    model.compile(
-        optimizer='adam',
-        loss='sparse_categorical_crossentropy',
-        metrics=['accuracy']
-    )
-
-    model.summary()
-    return model
 
 def get_mobilenetv2_model():
     mobilenetv2 = MobileNetV2(include_top=False, weights='imagenet',input_shape=(486,648,3))
     for layer in mobilenetv2.layers:
         layer.trainable = False
-    mobilenetv2_preprocess = tf.keras.applications.mobilenet_v2.preprocess_input
+    mobilenetv2_preprocess = preprocess_input
     input_shape = (486,648,3)
-    img_in = Input(shape=input_shape, name='img_in')
-    x = mobilenetv2_preprocess(img_in)
-    x = mobilenetv2(img_in, training=True)
-    x = GlobalAveragePooling2D()(x)
+    input = keras.layers.Input(shape=input_shape, name='img_in')
+    #x = mobilenetv2_preprocess(input)
+    x = mobilenetv2(input)
+    x = keras.layers.GlobalAveragePooling2D()(x)
     # Classification layer
-    output = Dense(3, activation='softmax', name='dense')(x)
+    output = keras.layers.Dense(3, activation='softmax', name='dense')(x)
     # Final model
-    model = Model(inputs=[img_in], outputs=output)
+    model = Model(inputs=input, outputs=output)
 
     model.compile(
     optimizer='adam',
@@ -188,59 +151,11 @@ def get_mobilenetv2_model():
     model.summary()
     return model
 
-def get_efficientnetb0_model():
-    efficientnetb0 = EfficientNetB0(include_top=False, weights='imagenet',input_shape=(486,648,3))
-    for layer in efficientnetb0.layers:
-        layer.trainable = False
-    efficientnetb0_preprocess = tf.keras.applications.efficientnet.preprocess_input
-
-    # Transfer Learning
-    input_shape = (486,648,3)
-    img_in = Input(shape=input_shape, name='img_in')
-    x = efficientnetb0_preprocess(img_in)
-    x = efficientnetb0(img_in, training=True)
-    x = GlobalAveragePooling2D()(x)
-    # Classification layer
-    output = Dense(3, activation='softmax', name='dense')(x)
-    # Final model
-    model = Model(inputs=[img_in], outputs=output)
-
-    model.compile(
-        optimizer='adam',
-        loss='sparse_categorical_crossentropy',
-        metrics=['accuracy']
-    )
-
-    model.summary()
-    return model
-
-
-def get_model_params(model):
-    trainable_count = np.sum([K.count_params(w) for w in model.trainable_weights])
-    non_trainable_count = np.sum([K.count_params(w) for w in model.non_trainable_weights])
-    '''
-    print('Total params: {:,}'.format(trainable_count + non_trainable_count))
-    print('Trainable params: {:,}'.format(trainable_count))
-    print('Non-trainable params: {:,}'.format(non_trainable_count))
-    '''
-    return (trainable_count + non_trainable_count),trainable_count,non_trainable_count
-
-
 def save_model(model_name,model):
     model.save(model_name + ".h5")
     print(f"Model saved as {model_name}.h5")
 
 '''
-# Conv1D Training
-logger.info("Conv1D Training Start")
-x_train = ndvi_images()
-# x_train = x_train/255.0
-y_train = no2_labels()
-conv1D_model = get_conv1D_model()
-history_conv1D = conv1D_model.fit(x_train,y_train,epochs=1)
-save_model("conv1D",conv1D_model)
-'''
-
 # Conv2D Training
 keras.backend.clear_session()
 logger.info("Conv2D Training Start")
@@ -250,67 +165,69 @@ x_train = x_train/255.0
 y_train = no2_labels()
 conv2D_model = get_conv2D_model()
 history_conv2D = conv2D_model.fit(x_train,y_train,epochs=10)
-save_model("conv2D",conv2D_model)
-
-'''
-# Conv2D Training
-logger.info("Conv2D2 Training Start")
-x_train = np.array(ndvi_small_image())
-x_train = np.expand_dims(x_train,axis=3)
-x_train = x_train/255.0
-y_train = no2_labels()
-conv2D2_model = get_conv2D2_model()
-history_conv2D2 = conv2D2_model.fit(x_train,y_train,epochs=10)
-save_model("conv2D2",conv2D2_model)
-'''
+save_model("Conv2D_TFLite",conv2D_model)
 
 # Keras Save
 # serialize model to JSON
 model_json = conv2D_model.to_json()
-with open("model114.json", "w") as json_file:
+with open("Conv2D_TF114.json", "w") as json_file:
     json_file.write(model_json)
 # serialize weights to HDF5
-conv2D_model.save_weights("model114.h5")
+conv2D_model.save_weights("Conv2D_TF114.h5")
 print("Saved model to disk")
 
 # Keras Load
 # load json and create model
-json_file = open('model114.json', 'r')
+json_file = open('Conv2D_TF114.json', 'r')
 loaded_model_json = json_file.read()
 json_file.close()
 loaded_model = model_from_json(loaded_model_json)
 # load weights into new model
-loaded_model.load_weights("model114.h5")
+loaded_model.load_weights("Conv2D_TF114.h5")
 print("Loaded model from disk")
 print(loaded_model.summary())
+'''
+
+'''
+# TFLite Convert
+converter = tf.compat.v1.lite.TFLiteConverter.from_keras_model_file("Conv2D_TFLite.h5")
+tflite_model = converter.convert()
+with open('Conv2D_TF114.tflite','wb') as f:
+    f.write(tflite_model)
 
 '''
 # Mobilenetv2 Training
 logger.info("Mobilenetv2 Training Start")
-print('x_train for mobilenet')
 x_train = ndvi_rgb_image()
-# x_train = x_train/255.0
+x_train = x_train/255.0
 y_train = no2_labels()
 print(' transfer mobilenet')
 mobilenetv2_model = get_mobilenetv2_model()
 history_mobilenetv2 = mobilenetv2_model.fit(x_train,y_train,epochs=1)
-save_model("mobilenetv2",mobilenetv2_model)
+save_model("Mobilenetv2_TFLite",mobilenetv2_model)
 
-# EfficientB0 Training
-logger.info("EfficientNetB0 Training Start")
-x_train = ndvi_rgb_image()
-# x_train = x_train/255.0
-y_train = no2_labels()
-efficientnetb0_model = get_efficientnetb0_model()
-history_efficientnetb0 = efficientnetb0_model.fit(x_train,y_train,epochs=1)
-save_model("efficientnetb0",efficientnetb0_model)
+# Keras Save
+# serialize model to JSON
+model_json = mobilenetv2_model.to_json()
+with open("Mobilenetv2_TF114.json", "w") as json_file:
+    json_file.write(model_json)
+# serialize weights to HDF5
+mobilenetv2_model.save_weights("Mobilenetv2_TF114.h5")
+print("Saved model to disk")
 
-# Training Models Metrics
-metrics = PrettyTable()
-metrics.field_names = ["Model","Total Params","Trainable Params","Non-Trainable Params","Loss", "Accuracy"]
-metrics.add_row(["Conv1D",get_model_params(conv1D_model)[0],get_model_params(conv1D_model)[1],get_model_params(conv1D_model)[2], history_conv1D.history['loss'], history_conv1D.history['accuracy']])
-metrics.add_row(["Conv2D",get_model_params(conv2D_model)[0],get_model_params(conv2D_model)[1],get_model_params(conv2D_model)[2], history_conv2D.history['loss'], history_conv2D.history['accuracy']])
-metrics.add_row(["MobileNetv2",get_model_params(mobilenetv2_model)[0],get_model_params(mobilenetv2_model)[1],get_model_params(mobilenetv2_model)[2],history_mobilenetv2.history['loss'], history_mobilenetv2.history['accuracy']])
-metrics.add_row(["EfficientNetB0",get_model_params(efficientnetb0_model)[0],get_model_params(efficientnetb0_model)[1],get_model_params(efficientnetb0_model)[2], history_efficientnetb0.history['loss'], history_efficientnetb0.history['accuracy']])
-print(metrics)
-'''
+# Keras Load
+# load json and create model
+json_file = open('Mobilenetv2_TF114.json', 'r')
+loaded_model_json = json_file.read()
+json_file.close()
+loaded_model = model_from_json(loaded_model_json)
+# load weights into new model
+loaded_model.load_weights("Mobilenetv2_TF114.h5")
+print("Loaded model from disk")
+print(loaded_model.summary())
+
+# TFLite Convert
+converter = tf.compat.v1.lite.TFLiteConverter.from_keras_model_file("Mobilenetv2_TFLite.h5")
+tflite_model = converter.convert()
+with open('Mobilenetv2_TF114.tflite','wb') as f:
+    f.write(tflite_model)
